@@ -54,7 +54,6 @@ function dataValidation() {
     .build());
 }
 
-
 // ----------------- Tasks -----------------
 
 /* Creates object from the information sheet, dates must
@@ -82,7 +81,6 @@ function getInfoObject() {
   }
   return info;
 }
-
 
 // Creates object from the message sheet
 function getMessagesObject() {
@@ -139,11 +137,6 @@ function alphabetize(obj) {
     return (a.title > b.title) ? 1 : ((b.title > a.title) ? -1 : 0);
   });
   return obj;
-}
-
-// Add row data to info objects
-function getInfoRowData(info) {
-
 }
 
 // Create an object of data that needs to be sent
@@ -211,9 +204,7 @@ function makeButton(infoI, msgsM){
     '</a>';
 }
 
-
 function sendEmail(infoI) {
-
   MailApp.sendEmail({
     to: infoI.email,
     subject: infoI.subject,
