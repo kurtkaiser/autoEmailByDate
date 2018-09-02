@@ -1,240 +1,123 @@
 // Kurt Kaiser
-// Date Messaging System
-// All Rights Reserved, 2018
+// Date Emailing System
+// All Right Reserved, 2018
 
 var ss = SpreadsheetApp.getActiveSpreadsheet();
-var msgSheet = ss.getSheetByName("Messages");
-var infoSheet = ss.getSheetByName("Info");
-var infoLastColumn = infoSheet.getLastColumn();
-var infoLastRow = infoSheet.getLastRow();
-var msgLastRow = msgSheet.getLastRow();
+var sheet = ss.getActiveSheet();
+var lastRow = sheet.getLastRow();
+var lastColumn = sheet.getLastColumn();
 
-// ----------------- Formating -----------------
-function makeMessageSheet() {
-  if (msgSheet != null) return false;
-  ss.insertSheet("Messages");
-  msgSheet = ss.getSheetByName("Messages");
-  msgSheet.getRange('B1:F1').mergeAcross();
-  msgSheet.getCurrentCell().getNextDataCell(SpreadsheetApp.Direction.DOWN).activate();
-  msgSheet.getRange('B1:F1').activate();
-  var currentCell = msgSheet.getCurrentCell();
-  msgSheet.getSelection().getNextDataRange(SpreadsheetApp.Direction.DOWN).activate();
-  currentCell.activateAsCurrentCell();
-  msgSheet.getRange('B1:F1').copyTo(msgSheet.getActiveRange(),
-    SpreadsheetApp.CopyPasteType.PASTE_NORMAL, false);
-  msgSheet.getActiveRangeList().setWrapStrategy(SpreadsheetApp.WrapStrategy.WRAP);
-  msgSheet.getRange('A1').setValue('Title');
-  msgSheet.getRange('B1').setValue('Message');
-  msgSheet.getRange('B1:F1').mergeAcross();
-  msgSheet.getActiveRangeList().setHorizontalAlignment('center');
-  msgSheet.getRange('1:1').setFontWeight('bold');
-  msgSheet.setFrozenRows(1);
-  msgSheet.getRange('A2').activate();
-}
-
-function checkFormating() {
-  var sheets = ss.getSheets();
-  if (sheets.length != 2) {
-    SpreadsheetApp.getUi().alert('Error: Spreadsheet must a' +
-      ' sheet named "Info" and a sheet named "Messages".');
-  }
-}
-
-// Updates column one of the date sheet with current message title list
-function dataValidation() {
-  ss.getRange('Info!A2:A1000').setDataValidation(SpreadsheetApp.newDataValidation()
+function format(){
+  sheet.getRange('A1').setValue('Email');
+  sheet.getRange('B1').setValue('Send Date');
+  sheet.getRange('C1').setValue('Status');
+  sheet.getRange('D1').setValue('Subject');
+  sheet.getRange('E1').setValue('Header');
+  sheet.getRange('F1').setValue('Message');
+  sheet.getRange('1:1').setFontWeight('bold');
+  sheet.setFrozenRows(1);
+  sheet.getRange('A2:A1000').setDataValidation(
+    SpreadsheetApp.newDataValidation()
     .setAllowInvalid(false)
-    .requireValueInRange(ss.getRange('Messages!$A$2:$A'), true)
+    .requireTextIsEmail()
     .build());
-  // Sets date column to not allow past dates to be entered
-  infoSheet.getRange(infoLastRow, 3, 1000, 1).setDataValidation(SpreadsheetApp.newDataValidation()
+  sheet.getRange('B2:B1000').setDataValidation(
+    SpreadsheetApp.newDataValidation()
     .setAllowInvalid(false)
-    .requireDateAfter(new Date())
-    .setHelpText('Date must be in the future. Any date today or ealier is not valid.')
+    .requireDate()
+    .build());
+  sheet.getRange('C2:C1000').setDataValidation(
+    SpreadsheetApp.newDataValidation()
+    .setAllowInvalid(false)
+    .setHelpText('Program uses this column, leave cells blank.')
+    .requireTextEqualTo('Email Sent')
     .build());
 }
 
-// ----------------- Tasks -----------------
-
-/* Creates object from the information sheet, dates must
-be in the future and Status cell must be blank */
-function getInfoObject() {
-  // Get first three columns of info sheet into an array
-  var info = [];
-  var msgTitles = infoSheet.getRange(2, 1, infoLastRow, 1).getValues();
-  var statuses = infoSheet.getRange(2, 2, infoLastRow, 1).getValues();
-  var dates = infoSheet.getRange(2, 3, infoLastRow, 1).getValues();
-  var emails = infoSheet.getRange(2, 4, infoLastRow, 1).getValues();
-  // Convert column objects into arrays
-  msgTitles = [].concat.apply([], msgTitles);
-  statuses = [].concat.apply([], statuses);
-  dates = [].concat.apply([], dates);
-  emails = [].concat.apply([], emails);
-  for (i = 0; i < infoLastRow; i++) {
-    info[i] = {
-      row: i + 2,
-      title: msgTitles[i],
-      status: statuses[i],
-      date: dates[i],
-      email: emails[i]
-    }
-  }
-  return info;
-}
-
-// Creates object from the message sheet
-function getMessagesObject() {
-  var messages = [];
-  var titles = msgSheet.getRange(2, 1, msgLastRow, 1).getValues();
-  var days = msgSheet.getRange(2, 2, msgLastRow, 1).getValues();
-  var subjects = msgSheet.getRange(2, 3, msgLastRow, 1).getValues();
-  var msgs = msgSheet.getRange(2, 6, msgLastRow, 1).getValues();
-  // Convert column objects into arrays
-  titles = [].concat.apply([], titles);
-  days = [].concat.apply([], days);
-  subjects = [].concat.apply([], subjects);
-  msgs = [].concat.apply([], msgs);
-  for (i = 0; i < msgLastRow - 1; i++) {
-    messages[i] = {
-      row: i + 2,
-      title: titles[i],
-      day: days[i],
-      subject: subjects[i],
-      msg: msgs[i]
-    }
-  }
-  return messages;
-}
-
-//Convert dates to show how many days away they are
-function getDaysAway(info, msgs) {
-  var removeIndex = [];
+// Get rows of messages that need to be sent
+function getRowsToSend(){
   var today = new Date();
-  today.setHours(0,0,0,0);
-  /* Interate through data, if status blank and date not passed, 
-     subtract today from date, convert from miliseconds to days */
-  for (c = 0; c < infoLastRow; c++) {
-    if (info[c].status == "" && today < info[c].date ) {
-      info[c].daysAway = (Math.abs(info[c].date - today)) / 86400000;
-      info[c].daysAway = parseInt(info[c].daysAway);
-    } else {
-      removeIndex.push(c);
-      continue;
+  today.setHours(0, 0, 0, 0);
+  var rowsToSend = [];
+  var dates = sheet.getRange(2, 2, lastRow - 1, 1).getValues();
+  dates = [].concat.apply([], dates);
+  for (i = 0; i < dates.length; i++){
+    if (dates[i].getTime() === today.getTime()){
+      rowsToSend.push(i + 2);
     }
   }
-  // Remove info from array that won't be used
-  var count = 0;
-  for (n = 0; n < removeIndex.length; n++) {
-    info.splice(removeIndex[n] - count, 1);
-    count++;
+  return rowsToSend;
+}
+
+// Object Constructor for needed rows
+function Info(row){
+  var values = sheet.getRange(row, 1, 1, lastColumn).getValues();
+  values = [].concat.apply([], values);
+  this.email = values[0];
+  this.date = values[1];
+  this.subject = values[3];
+  this.title = values[4];
+  this.message = values[5];
+  this.row = row;
+  if (values[values.length - 1] != ""){
+    this.addedInfo = getAddedInfo(values.slice(6, lastColumn));
   }
-  return info;
 }
 
-// Alphabetizes objects by the titles
-function alphabetize(obj) {
-  obj.sort(function(a, b) {
-    return (a.title > b.title) ? 1 : ((b.title > a.title) ? -1 : 0);
-  });
-  return obj;
-}
-
-// Create an object of data that needs to be sent
-function sendInfo(info, msgs) {
-  var addInfo;
-  var header;
-  var i = 0;
-  var m = 0;
-	var otherInfo = "";
-  header = infoSheet.getRange(1, 5, 1, infoLastColumn - 5).getValues();
+// If sheet has additional info, loop and format it
+function getAddedInfo(addedInfo){
+  var header = sheet.getRange(1, 7, 1, lastColumn - 6).getValues();
   header = [].concat.apply([], header);
-	/* Get any other columns on info page, check if a date or a time
-	    and format accordingly */
-  while (info[i]) {// Add info from message sheet to info object
-    while (true) {
-      info[i].button = "";
-      if (info[i].title == msgs[m].title) {
-        if (info[i].daysAway != msgs[m].day){
-          info.splice(i, 1);
-          continue;
-        }
-        info[i].subject = msgs[m].subject;
-        info[i].msg = msgs[m].msg;
-        if (msgs[m].buttonLink) makeButtons(info[i], msgs[m]);
-
-        break;
-      } else {
-        m++;
-        if (m == msgs.length) {
-           SpreadsheetApp.getUi().alert('Error: Row ' + info[i].row + 
-                                        ' has an unknow message title.');
-          return;
-        }
-      }
-    }
-    info[i].other = infoSheet.getRange(info[i].row, 5, 1, infoLastColumn - 5).getValues();
-    info[i].other = [].concat.apply([], info[i].other);
-    var otherInfo = "<br />";
-    for (c = 0; c < info[i].other.length; c++) {
-      if (Date.parse(info[i].other[c])) {
-        if (info[i].other[c].getYear() == 1899) {
-          info[i].other[c] = info[i].other[c].getTime();
-          info[i].other[c] = info[i].other[c].toLocaleTimeString();
-          info[i].other[c].slice(0, info[i].other[c].length - 4);
+  var formatAddedInfo = '<br />';
+  for (i = 0; i < addedInfo.length; i++){
+    if (addedInfo[i] != ""){
+      if (Date.parse(addedInfo[i])) {
+        if (addedInfo[i].getYear() == 1899) {
+          addedInfo[i] = addedInfo[i].toLocaleTimeString();
+          addedInfo[i].slice(0, addedInfo[i].length - 4);
         } else {
-          info[i].other[c] = info[i].other[c].toLocaleDateString();
+          addedInfo[i] = addedInfo[i].toLocaleDateString();
         }
       }
-      otherInfo = otherInfo + "<br />" + header[c] + ":   " + info[i].other[c];
+      formatAddedInfo = formatAddedInfo + '<br />' +
+        header[i] + ':   ' + addedInfo[i];
     }
-    info[i].other = otherInfo;
-    sendEmail(info[i]);
-    i++;
   }
+  return formatAddedInfo;
 }
 
-function makeButton(infoI, msgsM){
-    info[i].button =
-      '<br /><br /><a href="' +
-    msgsM.buttonLink +
-    '" class="btn" style="-webkit-border-radius: 28;' +
-    "-moz-border-radius: 5;border-radius: 5px;font-family: Arial; color: #ffffff;font-size: 15px;" +
-    'background: #ff7878;padding:8px 20px 8px 20px;text-decoration: none;">' +
-    msgsM.buttonText +
-    '</a>';
-}
-
-function sendEmail(infoI) {
-  MailApp.sendEmail({
-    to: infoI.email,
-    subject: infoI.subject,
-    htmlBody: makeEmail(infoI)
-  })
-}
-
-function makeEmail(infoI) {
+// Prepare body of email
+function makeEmail(info) {
   return (
     '<!DOCTYPE html><html><head><base target="_top"></head><body><div style="text-align: center;' +
     'font-family: Arial;"><div id="center" style="width:300px;border: 2px dotted grey;background:' +
-    '#ececec; margin:25px;margin-left:auto; margin-right:auto;padding:15px;"><div style=" border: 2px dotted grey;' +
-    'background:white;margin-right:auto; margin-left:auto; padding:10px;"><h2>' +
-    infoI.title +
-    "</h2><h3>" +
-    infoI.msg +
-    infoI.other +
-    infoI.button +
+    '#ececec; margin:25px;margin-left:auto; margin-right:auto;padding:15px;"><br /><div style=" ' +
+    'border: 2px dotted grey;background:white;margin-right:auto; margin-left:auto; padding:10px;"><h2>' +
+    info.title +
+    '</h2><h3>' +
+    info.message +
+    info.addedInfo +
     '<br /><br /></div></div><div><p style="font-size:12px">' +
-    'Created by<a href="https://www.linkedin.com/in/kurtkaiser/">' + 
-    'Kurt Kaiser</a><br />2a546573543a44</p></div></body></html>'
+    'Created by<a href="https://www.linkedin.com/in/kurtkaiser/">' +
+    'Kurt Kaiser</a><br /> 2a546573543a44 </p></div></body></html>'
   );
 }
 
+function sendEmail(info) {
+  MailApp.sendEmail({
+    to: info.email,
+    subject: info.subject,
+    htmlBody: makeEmail(info)
+  })
+  sheet.getRange(info.row, 3).setValue('Email Sent');
+}
+                             
 // ----------------- Main -----------------
-function main() {
-  var info = getInfoObject();
-  var messages = getMessagesObject();
-  info = alphabetize(info);
-  messages = alphabetize(messages);
-  getDaysAway(info, messages);
-  sendInfo(info, messages);
+function main(){
+  var rowsToSend = getRowsToSend();
+  var info;
+  for (c = 0; c < rowsToSend.length; c++){
+    info = new Info(rowsToSend[c]);
+    sendEmail(info);
+  }
 }
